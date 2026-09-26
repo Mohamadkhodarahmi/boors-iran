@@ -1,0 +1,144 @@
+# All weights and thresholds of the decision layer. Nothing here is "truth":
+# every value must be revisited with `python -m bors_analyser backtest ...` / `train` results.
+#
+# Sub-score mapping: for a feature x with [lo, hi], score = clip((x - lo) / (hi - lo), 0, 1) * 100.
+# If lo > hi the direction is inverted (lower x -> higher score).
+# Missing features are skipped; each component reports its coverage (share of weight available).
+
+version: 1
+
+universe:
+  min_avg_value_20: 5.0e+9          # Rial; ignore illiquid stocks in scans/backtests
+  min_history_days: 60
+
+components:
+  tablo:
+    volume_ratio_20:          {weight: 1.0, lo: 0.8,   hi: 3.0}
+    real_money_flow_ratio:    {weight: 1.5, lo: -0.15, hi: 0.25}
+    real_money_flow_ratio_5:  {weight: 1.0, lo: -0.10, hi: 0.15}
+    buyer_power:              {weight: 1.5, lo: 0.7,   hi: 2.5}
+    buyer_power_vs_prev5:     {weight: 0.5, lo: 0.8,   hi: 1.8}
+    inflow_days_5:            {weight: 0.5, lo: 1,     hi: 4}
+    last_return:              {weight: 0.5, lo: -0.03, hi: 0.04}
+    dist_from_high:           {weight: 0.5, lo: -0.04, hi: 0.0}
+  technical:
+    rsi_14:                   {weight: 0.8, lo: 35,    hi: 65}
+    macd_hist_pct:            {weight: 0.4, lo: -0.01, hi: 0.01}
+    dist_sma_50:              {weight: 1.0, lo: -0.08, hi: 0.10}
+    sma_50_slope_10:          {weight: 1.0, lo: -0.03, hi: 0.03}
+    momentum_20:              {weight: 1.0, lo: -0.10, hi: 0.15}
+    breakout_20:              {weight: 0.7, lo: 0,     hi: 1}
+    bb_position:              {weight: 0.4, lo: 0.2,   hi: 0.8}
+  fundamental:
+    profit_growth:            {weight: 1.5, lo: 0.0,   hi: 0.8}    # nominal; inflation ~30-40%
+    revenue_growth:           {weight: 1.0, lo: 0.0,   hi: 0.7}
+    ytd_sales_growth:         {weight: 1.0, lo: 0.0,   hi: 0.7}
+    monthly_sales_yoy:        {weight: 0.7, lo: 0.0,   hi: 0.8}
+    gross_margin_change:      {weight: 0.7, lo: -0.05, hi: 0.05}
+    net_margin:               {weight: 0.7, lo: 0.0,   hi: 0.25}
+    pe_ttm:                   {weight: 1.0, lo: 15,    hi: 4}      # inverted: cheaper -> higher
+    debt_to_equity:           {weight: 0.5, lo: 3.0,   hi: 0.5}    # inverted
+  market:
+    market_breadth:           {weight: 1.0, lo: 0.3,   hi: 0.7}
+    market_money_flow_ratio:  {weight: 1.0, lo: -0.05, hi: 0.05}
+    market_median_return:     {weight: 1.0, lo: -0.01, hi: 0.01}
+
+# Higher = riskier. Each item adds `points` when its condition holds (capped at 100).
+risk:
+  near_resistance:     {feature: dist_to_resistance_20, op: "<",  value: 0.02, points: 15}
+  overbought:          {feature: rsi_14,                op: ">",  value: 75,   points: 15}
+  high_volatility:     {feature: volatility_20,         op: ">",  value: 0.60, points: 15}
+  volatility_rising:   {feature: volatility_ratio,      op: ">",  value: 1.5,  points: 10}
+  extended_above_ma:   {feature: dist_sma_50,           op: ">",  value: 0.25, points: 10}
+  chasing_after_spike: {feature: last_return,           op: ">",  value: 0.04, points: 10}
+  money_outflow:       {feature: real_money_flow_ratio_5, op: "<", value: -0.10, points: 10}
+  high_leverage:       {feature: debt_to_equity,        op: ">",  value: 3.0,  points: 10}
+  negative_report:     {feature: recent_report_negative, op: "==", value: true, points: 15}
+  auditor_issue:       {feature: has_auditor_issue,     op: "==", value: true, points: 20}
+  trading_halt:        {feature: has_trading_halt,      op: "==", value: true, points: 15}
+  capital_increase:    {feature: has_capital_increase,  op: "==", value: true, points: 5}
+  loss_making:         {feature: net_profit,            op: "<",  value: 0,    points: 10}
+
+# Overall score per analysis mode (weights over component scores; risk is subtracted).
+modes:
+  short:       {weights: {tablo: 0.6, technical: 0.2, market: 0.2}, risk_penalty: 0.3}
+  swing:       {weights: {tablo: 0.3, technical: 0.3, fundamental: 0.25, market: 0.15}, risk_penalty: 0.3}
+  fundamental: {weights: {fundamental: 1.0}, risk_penalty: 0.2}
+
+# Labels from the overall score. Wording is deliberately non-committal.
+labels:
+  - {min: 70, label: "Positive setup", fa: "مثبت / نیازمند تأیید"}
+  - {min: 60, label: "Candidate",      fa: "کاندید بررسی"}
+  - {min: 45, label: "Watch",          fa: "زیر نظر"}
+  - {min: 35, label: "Neutral",        fa: "خنثی"}
+  - {min: 20, label: "Risky",          fa: "پرریسک"}
+  - {min: 0,  label: "Negative",       fa: "منفی"}
+
+direction_thresholds: {positive: 60, negative: 40}   # component score -> +/0/- for divergence
+
+fundamental:
+  nominal_growth_hurdle: 0.30
+  event_lookback_days: 30
+
+timeseries:
+  flat_rel_change: 0.03
+  jump_sigma: 3.0
+  min_points: 3
+
+scanner:
+  unusual_volume:     {volume_ratio_20: 3.0}
+  real_money_inflow:  {real_money_flow_ratio: 0.15, min_flow_rial: 1.0e+10}
+  strong_buyer:       {buyer_power: 2.0}
+  breakout:           {breakout_20: true, volume_ratio_20: 1.5}
+  fundamental_improvement: {fundamental_score: 70}
+  risk_divergence:    {risk_score: 50}
+  top_n: 15
+
+# Statistical model (LightGBM). Probabilities are shown only when the registry says calibrated=true.
+model:
+  targets:
+    - {id: hit3_3d, type: hit,    threshold: 0.03, horizon: 3,
+       fa: "رسیدن قیمت به ۳٪+ (سقف روزانه) طی ۳ روز معاملاتی بعد از ورود در قیمت اولیه روز بعد"}
+    - {id: ret5_5d, type: return, threshold: 0.05, horizon: 5,
+       fa: "بازده بیش از ۵٪ طی ۵ روز معاملاتی (از قیمت اولیه روز بعد تا پایانی روز پنجم)"}
+  history_start: "2018-01-01"
+  # Splits are relative to the last labelled date: [train ... | calibration 12m | test 12m]
+  calibration_months: 12
+  test_months: 12
+  purge_days: 15
+  min_test_samples: 20000
+  calibration_max_gap: 0.05      # max |predicted - observed| in reliability bins with n >= 500
+  lgb_params:
+    objective: binary
+    learning_rate: 0.03
+    num_leaves: 31
+    min_child_samples: 400
+    feature_fraction: 0.7
+    bagging_fraction: 0.7
+    bagging_freq: 1
+    lambda_l2: 5.0
+    verbose: -1
+  num_boost_round: 600
+  early_stopping_rounds: 50
+
+# Named setups: backtested daily (`python -m bors_analyser setups`); an analysis cites the latest
+# study of every setup the stock currently satisfies ("what happened historically").
+setups:
+  volume_money_buyer:
+    conditions: "volume_ratio_20>3, buyer_power>2, real_money_flow_ratio>0.1, momentum_5>0"
+    fa: "حجم بیش از ۳ برابر میانگین + قدرت خریدار بالای ۲ + ورود پول حقیقی"
+  breakout_volume:
+    conditions: "breakout_20==true, volume_ratio_20>1.5"
+    fa: "شکست سقف ۲۰ روزه همراه با حجم بالاتر از میانگین"
+  persistent_inflow:
+    conditions: "real_money_flow_ratio_5>0.1, inflow_days_5>=4"
+    fa: "ورود پول حقیقی در حداقل ۴ روز از ۵ روز اخیر"
+  oversold_inflow:
+    conditions: "rsi_14<30, real_money_flow_ratio>0.1"
+    fa: "اشباع فروش (RSI زیر ۳۰) همزمان با ورود پول حقیقی"
+  spike_chase:
+    conditions: "last_return>0.04, volume_ratio_20>2"
+    fa: "روز پس از رشد تند قیمت با حجم بالا"
+
+display:
+  currency: toman            # toman | rial  (TSETMC data is in Rial; 1 toman = 10 rial)

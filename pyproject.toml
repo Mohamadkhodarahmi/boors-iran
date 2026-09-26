@@ -1,0 +1,48 @@
+[project]
+name = "bors-analyser"
+version = "0.1.0"
+description = "Iranian Market Intelligence Engine — TSETMC + CODAL analysis with Telegram delivery"
+authors = [
+    { name = "mamad", email = "mohamad.epic.k@Ggmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "apscheduler>=3.11.3",
+    "codalpy>=0.4.5",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "jdatetime>=6.1.0",
+    "lightgbm>=4.7.0",
+    "numpy>=2.5.3",
+    "pydantic-settings>=2.15.0",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.9.1",
+    "sqlalchemy>=2.0.54",
+    "tsetmc>=5.1.0",
+    "tzdata>=2026.4",
+    "uvicorn>=0.53.0",
+]
+
+[project.scripts]
+bors-analyser = "bors_analyser.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["live: hits real TSETMC/CODAL endpoints (run with -m live)"]
+addopts = "-m 'not live'"
+
+[tool.ruff]
+line-length = 110
+target-version = "py314"

@@ -1,0 +1,16 @@
+# Optional PostgreSQL for when SQLite is outgrown (or on a VPS).
+# docker compose up -d ; then set BORS_DATABASE_URL in .env and `uv add "psycopg[binary]"`.
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bors
+      POSTGRES_PASSWORD: bors
+      POSTGRES_DB: bors
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - bors-pg:/var/lib/postgresql/data
+volumes:
+  bors-pg:

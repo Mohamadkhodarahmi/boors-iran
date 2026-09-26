@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bors-analyser",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bors",
+      // replace with the id printed by `npx wrangler d1 create bors`
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    // "open" = anyone can use the bot; "allowlist" = admin must /approve users
+    "ACCESS_MODE": "open",
+    "RATE_LIMIT_PER_MIN": "12",
+    // comma-separated Telegram user ids
+    "ADMIN_IDS": ""
+  }
+  // Secrets (never in this file): wrangler secret put INGEST_TOKEN / TELEGRAM_BOT_TOKEN /
+  // TELEGRAM_WEBHOOK_SECRET / READ_TOKEN (optional, protects the GET API)
+}
